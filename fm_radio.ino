@@ -105,13 +105,11 @@ void loop() {
     }
 
     // retune handler
-    //curr_ts = millis();
     if(curr_ts - prev_ts > retune_interval) {
         if(freq != prev_freq) {
             prev_freq = freq;
             radio.selectFrequency(freq);
             draw_ui();
         }
-        //prev_ts = curr_ts;
     }
 }
