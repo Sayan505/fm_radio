@@ -32,13 +32,13 @@ void init_display() {
 // RC: TEA5767
 // +5V: 5V    SDA: A4    SLC: A5    GND: GND
 TEA5767N radio = TEA5767N();
-float freq = 87.5f;  // initial freq.: 87.5 MHz
+float freq = 100.1f;  // initial freq.
 
 void init_rc() {
     radio.setStereoReception();
     radio.setStereoNoiseCancellingOn();
 
-    // set initial freq.: 87.5 MHz
+    // set initial freq.
     radio.selectFrequency(freq);
 }
 
@@ -81,13 +81,19 @@ void loop() {
     // query rotary encoder position
     long long int new_posi = encoder.read();
 
+    // store current ts
+    curr_ts = millis();
+
     // calc. next freq.
     if (new_posi / 4 > old_posi) {
+        
         old_posi = new_posi / 4;
 
         freq += 0.1f;   // next
 
         draw_ui(false);
+
+        prev_ts = curr_ts;// store last changed ts
     }
     else if (new_posi / 4 < old_posi) {
         old_posi = new_posi / 4;
@@ -95,16 +101,17 @@ void loop() {
         freq -= 0.1f;   // prev.
 
         draw_ui(false);
+        prev_ts = curr_ts; // store last changed ts
     }
 
     // retune handler
-    curr_ts = millis();
+    //curr_ts = millis();
     if(curr_ts - prev_ts > retune_interval) {
         if(freq != prev_freq) {
             prev_freq = freq;
             radio.selectFrequency(freq);
             draw_ui();
         }
-        prev_ts = curr_ts;
+        //prev_ts = curr_ts;
     }
 }
