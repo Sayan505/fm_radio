@@ -88,18 +88,20 @@ void setup() {
 
 void loop() {
   // poll encoder position
-  int enc_new_posi = encoder.read();
+  int enc_new_posi          = encoder.read();
   int enc_old_posi_filtered = enc_new_posi / 4;
 
-  // store current timestamp
+  // get current timestamp
   unsigned long curr_ts = millis();
+
+  unsigned long rapid_tune_thresh_ms = 120;
 
   // calc next freq
   if(enc_old_posi_filtered > enc_old_posi) {
     enc_old_posi = enc_old_posi_filtered;
 
     // inc current freq
-    if(curr_ts - last_tuned_ts > 120) {
+    if(curr_ts - last_tuned_ts > rapid_tune_thresh_ms) {
       delta_freq(+0.1f);  // inc by 0.1 MHz if rotating the encoder slowly
     } else {
       delta_freq(+1.0f);  // inc by 1 MHz if rotating the encoder rapidly
@@ -112,7 +114,7 @@ void loop() {
     enc_old_posi = enc_old_posi_filtered;
 
     // dec current freq
-    if(curr_ts - last_tuned_ts > 120) {
+    if(curr_ts - last_tuned_ts > rapid_tune_thresh_ms) {
       delta_freq(-0.1f);  // dec by 0.1 MHz if rotating the encoder slowly
     } else {
       delta_freq(-1.0f);  // dec by 1 MHz if rotating the encoder rapidly
