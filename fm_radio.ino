@@ -10,7 +10,7 @@
 
 
 // init display
-// Gnd: GND    BL: 5V    Vcc: 5V    CLK: D13    DIN: D11    DC: D10    CE/CS: D9    RST: D8
+// Gnd: GND    BL: 5V    Vcc: 5V    CLK: D13    DIN: D11    DC: D10    CE: D9    RST: D8
 Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 10, 9, 8);
 
 void init_display() {
@@ -113,7 +113,7 @@ void loop() {
 
     // dec current freq
     if(curr_ts - last_tuned_ts > 120) {
-      delta_freq(-0.1f);  // inc by 0.1 MHz if rotating the encoder rapidly
+      delta_freq(-0.1f);  // dec by 0.1 MHz if rotating the encoder slowly
     } else {
       delta_freq(-1.0f);  // dec by 1 MHz if rotating the encoder rapidly
     }
