@@ -1,115 +1,135 @@
-#include <Wire.h>
-#include <SPI.h>
+//  Nokia 5110 Display (PCD8544): https://github.com/adafruit/Adafruit-PCD8544-Nokia-5110-LCD-library
+#include <Adafruit_GFX.h>
+#include <Adafruit_PCD8544.h>
 
-// Display
-#include <Adafruit_GFX.h>        // https://github.com/adafruit/Adafruit-GFX-Library
-#include <Adafruit_PCD8544.h>    // https://github.com/adafruit/Adafruit-PCD8544-Nokia-5110-LCD-library
+// TEA5767 Radio: https://github.com/mroger/TEA5767
+#include <TEA5767N.h>
 
-// RC
-#include <TEA5767N.h>           // https://github.com/mroger/TEA5767
-
-// Rotary Encoder
-#include <Encoder.h>            // https://github.com/PaulStoffregen/Encoder
+// M274 Rotary Encoder: https://github.com/PaulStoffregen/Encoder
+#include <Encoder.h>
 
 
-// display: Nokia 5110 (PCD8544)
-// Gnd: GND    BL: 5V    Vcc: 3v3    CLK: D12    DIN: D11    DC: D10    CE/CS: D9    RST: D8
-Adafruit_PCD8544 display = Adafruit_PCD8544(12, 11, 10, 9, 8);
+// init display
+// Gnd: GND    BL: 5V    Vcc: 5V    CLK: D13    DIN: D11    DC: D10    CE/CS: D9    RST: D8
+Adafruit_PCD8544 display = Adafruit_PCD8544(13, 11, 10, 9, 8);
 
 void init_display() {
-    display.begin();
+  display.begin();
+  display.clearDisplay();
+  display.display();
 
-    display.clearDisplay();
-    display.display();
-
-    display.setContrast(127);
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.display();
+  display.setContrast(50);
+  display.setCursor(0, 0);
+  display.setTextSize(2);
 }
 
 
-// RC: TEA5767
+// init radio
 // +5V: 5V    SDA: A4    SLC: A5    GND: GND
+// 87.5 MHz - 108.0 MHz FM
 TEA5767N radio = TEA5767N();
-float freq = 100.1f;  // initial freq.
+
+float curr_freq = 100.1f;
+float lfreq     = 87.5f;
+float ufreq     = 108.f;
+
 
 void init_rc() {
-    radio.setStereoReception();
-    radio.setStereoNoiseCancellingOn();
+  radio.setStereoReception();
+  radio.setStereoNoiseCancellingOn();
 
-    // set initial freq.
-    radio.selectFrequency(freq);
+  radio.selectFrequency(curr_freq);
+}
+
+float delta_freq(float delta) {
+  float res = curr_freq + delta;
+
+  if(res > ufreq)      res = ufreq;
+  else if(res < lfreq) res = lfreq;
+
+  curr_freq = res;
 }
 
 
-
-// RE: M274 Rotary Encoder
+// init rotary encoder (ref: https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/)
 // GND: GND    +: 5V    SW: N/A    DT: D3    CLK: D2
-Encoder encoder(2, 3);
-long old_posi = encoder.read();
+Encoder encoder(2, 3);  // both pins support interrupt for best performance
 
-unsigned long curr_ts, prev_ts = 0, retune_interval = 1000;
-float prev_freq = freq;
+int   enc_old_posi = encoder.read();
+float prev_freq    = curr_freq;
+unsigned long last_tuned_ts      = 0,
+              retune_interval_ms = 1000; // cooldown before retuning due to the radio chip being slow
 
 
-// UI
-void draw_ui(bool retuned = true) {
-    // craft info string
-    String str_retuned = "FM\n" + String(freq)+ "\nMHz";
-    String str_retuning = "FM\n" + String(freq)+ "\nMHz ...";
+void redraw_ui() {
+  String info = "FM\n" + String(curr_freq) + "\nMHz";
 
-    // render
-    display.clearDisplay();
-    display.write(retuned ? str_retuned.c_str() : str_retuning.c_str());
-    display.display();
+  // if not tuned to the selected freq yet (undergoing retuning)
+  if(prev_freq != curr_freq) {
+    info += " ...";
+  }
+  
+  display.clearDisplay();
+  display.print(info);
+  display.display();
 }
-
-
 
 
 void setup() {
-    init_display();
-    init_rc();
+  init_display();
 
-    draw_ui();
+  display.print("TUNING\n...");
+  display.display();
+
+  init_rc();
+
+  redraw_ui();
 }
 
-
-// BAND II: 87.5 MHz - 108.0 MHz FM
 void loop() {
-    // query rotary encoder position
-    long long int new_posi = encoder.read();
+  // poll encoder position
+  int enc_new_posi = encoder.read();
+  int enc_old_posi_filtered = enc_new_posi / 4;
 
-    // store current ts
-    curr_ts = millis();
+  // store current timestamp
+  unsigned long curr_ts = millis();
 
-    // calc. next freq.
-    if (new_posi / 4 > old_posi) {
-        
-        old_posi = new_posi / 4;
+  // calc next freq
+  if(enc_old_posi_filtered > enc_old_posi) {
+    enc_old_posi = enc_old_posi_filtered;
 
-        freq += 0.1f;   // next
-
-        draw_ui(false);
-
-        prev_ts = curr_ts;// store last changed ts
-    }
-    else if (new_posi / 4 < old_posi) {
-        old_posi = new_posi / 4;
-
-        freq -= 0.1f;   // prev.
-
-        draw_ui(false);
-        prev_ts = curr_ts; // store last changed ts
+    // inc current freq
+    if(curr_ts - last_tuned_ts > 120) {
+      delta_freq(+0.1f);  // inc by 0.1 MHz if rotating the encoder slowly
+    } else {
+      delta_freq(+1.0f);  // inc by 1 MHz if rotating the encoder rapidly
     }
 
-    // retune handler
-    if(curr_ts - prev_ts > retune_interval) {
-        if(freq != prev_freq) {
-            prev_freq = freq;
-            radio.selectFrequency(freq);
-            draw_ui();
-        }
+    last_tuned_ts = curr_ts;  // update last tuned timestamp to now
+
+    redraw_ui();
+  } else if(enc_old_posi_filtered < enc_old_posi) {
+    enc_old_posi = enc_old_posi_filtered;
+
+    // dec current freq
+    if(curr_ts - last_tuned_ts > 120) {
+      delta_freq(-0.1f);  // inc by 0.1 MHz if rotating the encoder rapidly
+    } else {
+      delta_freq(-1.0f);  // dec by 1 MHz if rotating the encoder rapidly
     }
+
+    last_tuned_ts = curr_ts;  // update last tuned timestamp to now
+
+    redraw_ui();
+  }
+
+  // retune only if the encoder position was changed more than retune_interval_ms time ago
+  if(curr_ts - last_tuned_ts > retune_interval_ms) {
+    // retune only if the target freq is different than the current freq
+    if(curr_freq != prev_freq) {
+      prev_freq = curr_freq;
+      radio.selectFrequency(curr_freq);
+      redraw_ui();
+    }
+  }
 }
