@@ -1,5 +1,5 @@
 # FM Radio
-![](./picture.jpg)
+![](./picture.jpeg)
 
 ## Prerequisite Parts
 - **``TEA5767``** (radio module)
