@@ -89,7 +89,7 @@ void setup() {
 void loop() {
   // poll encoder position
   int enc_new_posi          = encoder.read();
-  int enc_old_posi_filtered = enc_new_posi / 4;
+  int enc_new_posi_filtered = enc_new_posi / 4;
 
   // get current timestamp
   unsigned long curr_ts = millis();
@@ -97,8 +97,8 @@ void loop() {
   unsigned long rapid_tune_thresh_ms = 120;
 
   // calc next freq
-  if(enc_old_posi_filtered > enc_old_posi) {
-    enc_old_posi = enc_old_posi_filtered;
+  if(enc_new_posi_filtered > enc_old_posi) {
+    enc_old_posi = enc_new_posi_filtered;
 
     // inc current freq
     if(curr_ts - last_tuned_ts > rapid_tune_thresh_ms) {
@@ -110,8 +110,8 @@ void loop() {
     last_tuned_ts = curr_ts;  // update last tuned timestamp to now
 
     redraw_ui();
-  } else if(enc_old_posi_filtered < enc_old_posi) {
-    enc_old_posi = enc_old_posi_filtered;
+  } else if(enc_new_posi_filtered < enc_old_posi) {
+    enc_old_posi = enc_new_posi_filtered;
 
     // dec current freq
     if(curr_ts - last_tuned_ts > rapid_tune_thresh_ms) {
